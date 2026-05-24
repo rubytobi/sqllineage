@@ -31,7 +31,7 @@ class SqlFluffLineageAnalyzer(LineageAnalyzer):
             path=file_path, overrides={"dialect": dialect}
         )
         self._silent_mode = silent_mode
-        self.tsql_split_cache: dict[str, BaseSegment] = {}
+        self._segment_cache: dict[str, BaseSegment] = {}
 
     def split_tsql(self, sql: str) -> list[str]:
         """
@@ -40,15 +40,32 @@ class SqlFluffLineageAnalyzer(LineageAnalyzer):
         """
         sqls = []
         for segment in self._list_specific_statement_segment(sql):
-            self.tsql_split_cache[segment.raw] = segment
+            self._segment_cache[segment.raw] = segment
             sqls.append(segment.raw)
         return sqls
+
+    def preparse(self, statements: list[str]) -> None:
+        """
+        Parse all statements in a single Linter call, caching the resulting segments.
+        This eliminates the per-statement FluffConfig deepcopy that occurs inside every
+        Linter() construction, replacing N copies with one.
+
+        Cache keys are the original input strings (not segment.raw) so that lookups in
+        analyze() always hit regardless of how the caller normalises whitespace or
+        semicolons.  On a segment-count mismatch the cache is left empty and analyze()
+        falls back to per-statement parsing transparently.
+        """
+        combined = ";\n".join(s.rstrip("; \t\n") for s in statements)
+        segments = self._list_specific_statement_segment(combined)
+        if len(segments) == len(statements):
+            for stmt, segment in zip(statements, segments):
+                self._segment_cache[stmt] = segment
 
     def analyze(
         self, sql: str, metadata_provider: MetaDataProvider
     ) -> StatementLineageHolder:
-        if sql in self.tsql_split_cache:
-            statement_segments = [self.tsql_split_cache[sql]]
+        if sql in self._segment_cache:
+            statement_segments = [self._segment_cache[sql]]
         else:
             statement_segments = self._list_specific_statement_segment(sql)
         if len(statement_segments) == 0:

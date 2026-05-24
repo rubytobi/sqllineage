@@ -36,7 +36,7 @@ def lazy_property(func):
 class LineageRunner:
     def __init__(
         self,
-        sql: str,
+        sql: str | list[str],
         dialect: str = DEFAULT_DIALECT,
         metadata_provider: MetaDataProvider = DummyMetaDataProvider(),
         verbose: bool = False,
@@ -47,7 +47,9 @@ class LineageRunner:
         """
         The entry point of SQLLineage after command line options are parsed.
 
-        :param sql: a string representation of SQL statements.
+        :param sql: a string of one or more SQL statements, or a pre-split list of individual statements.
+                    Passing a list avoids the internal split step, which is useful when statements are
+                    already tokenised upstream.
         :param dialect: sql dialect
         :param metadata_provider: metadata service object providing table schema
         :param verbose: verbose flag indicating whether statement-wise lineage result will be shown
@@ -121,7 +123,9 @@ Target Tables:
         draw_options = self._draw_options
         if draw_options.get("f") is None:
             draw_options.pop("f", None)
-            draw_options["e"] = self._sql
+            draw_options["e"] = (
+                self._sql if isinstance(self._sql, str) else ";\n".join(self._sql)
+            )
             draw_options["dialect"] = self._dialect
             draw_options["metadata_provider"] = self._metadata_provider
         return draw_lineage_graph(**draw_options)
@@ -190,7 +194,9 @@ Target Tables:
                 self._file_path, self._dialect, self._silent_mode
             )
         )
-        if SQLLineageConfig.TSQL_NO_SEMICOLON and self._dialect == "tsql":
+        if isinstance(self._sql, list):
+            self._stmt = [s for s in self._sql if s.strip()]
+        elif SQLLineageConfig.TSQL_NO_SEMICOLON and self._dialect == "tsql":
             self._stmt = analyzer.split_tsql(self._sql.strip())
         else:
             if SQLLineageConfig.TSQL_NO_SEMICOLON and self._dialect != "tsql":
@@ -198,6 +204,11 @@ Target Tables:
                     f"Dialect={self._dialect}, TSQL_NO_SEMICOLON will be ignored unless dialect is tsql"
                 )
             self._stmt = split(self._sql.strip())
+
+        if isinstance(analyzer, SqlFluffLineageAnalyzer) and not (
+            SQLLineageConfig.TSQL_NO_SEMICOLON and self._dialect == "tsql"
+        ):
+            analyzer.preparse(self._stmt)
 
         with self._metadata_provider.session() as session:
             stmt_holders = []
