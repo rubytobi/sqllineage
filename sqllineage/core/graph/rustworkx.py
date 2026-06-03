@@ -39,6 +39,7 @@ class RustworkXGraphOperator(GraphOperator):
                         self._tag_index.setdefault(prop, set()).add(vertex)
 
     def add_vertex_if_not_exist(self, vertex: Any, **props) -> None:
+        assert all(v is True for v in props.values()), "props values must be True"
         if vertex in self._vertex_to_index:
             # Update existing node
             node_idx = self._vertex_to_index[vertex]
@@ -52,25 +53,16 @@ class RustworkXGraphOperator(GraphOperator):
             node_data = {"vertex": vertex, **props}
             node_idx = self.graph.add_node(node_data)
             self._vertex_to_index[vertex] = node_idx
-        for prop, val in props.items():
-            if val is True:
-                self._tag_index.setdefault(prop, set()).add(canonical)
-            else:
-                self._tag_index.get(prop, set()).discard(canonical)
+        for prop in props:
+            self._tag_index.setdefault(prop, set()).add(canonical)
 
     def retrieve_vertices_by_props(self, **props) -> list[Any]:
+        assert all(v is True for v in props.values()), "props values must be True"
         if not props:
             return [self.graph[i]["vertex"] for i in self.graph.node_indices()]
         result: set[Any] | None = None
-        for prop, val in props.items():
-            if val is True:
-                candidates = self._tag_index.get(prop, set())
-            else:
-                candidates = {
-                    self.graph[i]["vertex"]
-                    for i in self.graph.node_indices()
-                    if self.graph[i].get(prop) == val
-                }
+        for prop in props:
+            candidates = self._tag_index.get(prop, set())
             result = candidates if result is None else result & candidates
         return list(result or set())
 
@@ -247,8 +239,6 @@ class RustworkXGraphOperator(GraphOperator):
                     if v in self._vertex_to_index:
                         canonical = self.graph[self._vertex_to_index[v]]["vertex"]
                         self_tag_set.add(canonical)
-                    else:
-                        self_tag_set.add(v)
         else:
             raise TypeError(
                 "Expect other to be RustworkXGraphOperator, got " + str(type(other))

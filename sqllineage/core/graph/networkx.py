@@ -32,27 +32,19 @@ class NetworkXGraphOperator(GraphOperator):
                         self._tag_index.setdefault(prop, set()).add(v)
 
     def add_vertex_if_not_exist(self, vertex: Any, **props) -> None:
+        assert all(v is True for v in props.values()), "props values must be True"
         self.graph.add_node(vertex, **props)
         canonical = self._canonical.setdefault(vertex, vertex)
-        for prop, val in props.items():
-            if val is True:
-                self._tag_index.setdefault(prop, set()).add(canonical)
-            else:
-                self._tag_index.get(prop, set()).discard(canonical)
+        for prop in props:
+            self._tag_index.setdefault(prop, set()).add(canonical)
 
     def retrieve_vertices_by_props(self, **props) -> list[Any]:
+        assert all(v is True for v in props.values()), "props values must be True"
         if not props:
             return list(self.graph.nodes())
         result: set[Any] | None = None
-        for prop, val in props.items():
-            if val is True:
-                candidates = self._tag_index.get(prop, set())
-            else:
-                candidates = {
-                    v
-                    for v, attr in self.graph.nodes(data=True)
-                    if attr.get(prop) == val
-                }
+        for prop in props:
+            candidates = self._tag_index.get(prop, set())
             result = candidates if result is None else result & candidates
         return list(result or set())
 
