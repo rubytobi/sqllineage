@@ -25,20 +25,18 @@ class SourceHandlerMixin:
                 tgt_tbl = next(iter(holder.write))
                 lateral_column_aliases: dict[str, list[Column]] = {}
                 alias_mapping = holder.get_alias_mapping_from_table_group(tbl_grp)
-                precomputed_write_columns = holder.write_columns
-                use_write_columns = len(precomputed_write_columns) == len(col_grp)
                 for idx, tgt_col_from_query in enumerate(col_grp):
                     tgt_col_from_query.parent = tgt_tbl
                     tgt_col_resolved = tgt_col_from_query
                     src_cols_resolved = []
                     for src_col in tgt_col_from_query.to_source_columns(alias_mapping):
-                        if use_write_columns:
+                        if len(write_columns := holder.write_columns) == len(col_grp):
                             # example query: create view test (col3) select col1 as col2 from tab
                             # without write_columns = [col3] information, by default src_col = col1 and tgt_col = col2
                             # when write_columns exist and length matches, we want tgt_col = col3 instead of col2
                             # for invalid query: create view test (col3, col4) select col1 as col2 from tab,
                             # when the length doesn't match, we fall back to default behavior
-                            tgt_col_resolved = precomputed_write_columns[idx]
+                            tgt_col_resolved = write_columns[idx]
                         # lateral column alias handling
                         lca_flag = False
                         if SQLLineageConfig.LATERAL_COLUMN_ALIAS_REFERENCE:
