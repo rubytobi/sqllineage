@@ -55,7 +55,7 @@ class SqlFluffLineageAnalyzer(LineageAnalyzer):
         semicolons.  On a segment-count mismatch the cache is left empty and analyze()
         falls back to per-statement parsing transparently.
         """
-        combined = ";\n".join(s.rstrip("; \t\n") for s in statements)
+        combined = "\n;\n".join(s.rstrip("; \t\n") for s in statements)
         segments = self._list_specific_statement_segment(combined)
         if len(segments) == len(statements):
             for stmt, segment in zip(statements, segments):
