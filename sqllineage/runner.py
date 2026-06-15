@@ -124,7 +124,13 @@ Target Tables:
         if draw_options.get("f") is None:
             draw_options.pop("f", None)
             draw_options["e"] = (
-                self._sql if isinstance(self._sql, str) else ";\n".join(self._sql)
+                self._sql
+                if isinstance(self._sql, str)
+                else (
+                    "\n".join(self._sql)
+                    if SQLLineageConfig.TSQL_NO_SEMICOLON and self._dialect == "tsql"
+                    else ";\n".join(self._sql)
+                )
             )
             draw_options["dialect"] = self._dialect
             draw_options["metadata_provider"] = self._metadata_provider
